@@ -5,33 +5,50 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  build:
-    working_directory: ~/repo
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
+  build:   
     docker:
       - image: circleci/golang:1.15.8
+      - image: circleci/postgres:9.6-alpine
+        environment:  # environment variable for primary container
+          POSTGRES_USER: postgres
+    working_directory: /go/src/github.com/jli125/delinkcious_v02
+    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
+    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - go-mod-v4-{{ checksum "go.sum" }}
+      # - restore_cache:
+      #    keys:
+      #      - go-mod-v4-{{ checksum "go.sum" }}
+      #- run:
+      #    name: Install Dependencies
+      #    command: go mod download
       - run:
-          name: Install Dependencies
-          command: go mod download
-      - save_cache:
-          key: go-mod-v4-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
+          name: Get all dependencies
+          command: |
+            go get -v ./...
+            go get -u github.com/onsi/qinkgo/qinkgo
+            go get -u github.com/onsi/gomega/...
+      #- save_cache:
+      #    key: go-mod-v4-{{ checksum "go.sum" }}
+      #    paths:
+      #      - "/go/pkg/mod"
       - run:
           name: Run tests
           command: |
-            mkdir -p /tmp/test-reports
-            gotestsum --junitfile /tmp/test-reports/unit-tests.xml
-      - store_test_results:
-          path: /tmp/test-reports
+            # mkdir -p /tmp/test-reports
+            # gotestsum --junitfile /tmp/test-reports/unit-tests.xml
+            ginkgo -r -race -failFast -progress
+      #- store_test_results:
+      #    path: /tmp/test-reports
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: build and push Docker images
+          command: |
+            chmod +x ./build.sh
+            ./build.sh
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
